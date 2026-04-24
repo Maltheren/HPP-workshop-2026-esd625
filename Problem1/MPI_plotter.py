@@ -1,13 +1,10 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import io
-import csv
 
-# Load the data
-with open('bfs_master_benchmark.csv', 'r') as f:
-    data = f.read()
 
-df = pd.read_csv(io.StringIO(data))
+
+df = pd.read_csv('Problem1/bfs_master_benchmark_2.csv')
 
 # Initialize the plot
 plt.figure(figsize=(10, 6))
