@@ -18,12 +18,14 @@ for proc in sorted(df['procs'].unique(), reverse=True):
     plt.plot(subset['num_nodes'], subset['avg_mean_time'], marker='o', label=f'Procs: {proc}')
 
 # Formatting the plot
-plt.xlabel('Number of Nodes')
-plt.ylabel('Average Mean Time (seconds)')
+plt.xlabel('Number of Nodes (log scale)')
+plt.ylabel('Average Mean Time (log scale)')
 plt.title('Performance Scaling: Mean Time vs. Number of Nodes')
 plt.legend()
 plt.grid(True, which="both", ls="-", alpha=0.5)
 
 # Use log-log scale for better visibility of scaling trends
+plt.xscale('log')
+plt.yscale('log')
 
 plt.show()
