@@ -242,7 +242,7 @@ def show_result():
     print("="*40)
 
 if __name__ == "__main__":
-    test_sizes = [100, 500, 1000, 2000, 5000, 10000, 20000]
+    test_sizes = [10, 100, 1000, 10000, 100000]
     iterations = 32 # To ensure normal distribution
     results = []
 
@@ -297,7 +297,7 @@ if __name__ == "__main__":
     # 4. Gem til CSV (Append mode, så du kan køre -n 1, 4, 8, 12 efter hinanden)
     if rank == 0:
         import os
-        csv_filename = "bfs_master_benchmark.csv"
+        csv_filename = "bfs_master_benchmark_2.csv"
         file_exists = os.path.isfile(csv_filename)
         
         with open(csv_filename, mode='a', newline='') as file:
