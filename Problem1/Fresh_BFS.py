@@ -1,3 +1,4 @@
+# Nyeste Version af BFS Mulitprocessing script UDEN Chatteb
 import multiprocessing as mp
 from collections import defaultdict, deque
 import random as rand
