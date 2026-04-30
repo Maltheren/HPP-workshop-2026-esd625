@@ -77,45 +77,6 @@ class Graph:
 
         return row_s, row_e, col_s, col_e
 
-    """ 
-    def parallel_bfs(self, start_node, num_nodes):
-        visited = np.zeros(num_nodes, dtype=bool)
-        # Frontier: hvem skal vi tjekke i dette lag?
-        frontier = np.zeros(num_nodes, dtype=bool)
-        
-        if start_node < num_nodes: # En simpel start-betingelse
-            frontier[start_node] = True
-        
-        level = 0
-        while frontier.any():
-            # 1. Kommuniker frontier internt i rækkerne
-            # Alle i rækken skal vide, hvilke noder de skal tjekke
-            local_frontier = np.zeros(num_nodes, dtype=bool)
-            self.row_comm.Allreduce(frontier, local_frontier, op=MPI.LOR)
-
-            # 2. Find lokale naboer
-            discovered_neighbors = np.zeros(num_nodes, dtype=bool)
-            for u in range(num_nodes):
-                if local_frontier[u] and u in self.graph:
-                    for v in self.graph[u]:
-                        if not visited[v]:
-                            discovered_neighbors[v] = True
-
-            # 3. Kolonne-kommunikation (Allreduce i kolonnen)
-            # Vi samler alle naboer fundet i denne kolonne-gruppe
-            next_frontier = np.zeros(num_nodes, dtype=bool)
-            self.col_comm.Allreduce(discovered_neighbors, next_frontier, op=MPI.LOR)
-
-            # Opdater visited og gør klar til næste lag
-            visited |= frontier
-            frontier = next_frontier & ~visited
-            
-            if rank == 0:
-                print(f"Level {level} færdig...")
-            level += 1
-
-        return visited
-    """    
    
     def parallel_bfs(self, start_node, num_nodes):
         distances = np.full(num_nodes, -1, dtype=int)
@@ -246,7 +207,7 @@ def show_result():
 if __name__ == "__main__":
 
     
-    test_sizes = [100000]
+    test_sizes = [10, 100, 1000, 10000, 100000, 1000000]
     iterations = 1 # To ensure normal distribution
     results = []
 
@@ -275,9 +236,11 @@ if __name__ == "__main__":
 
             pr = cProfile.Profile()
             pr.enable()
-            t_start = MPI.Wtime()
+            
             
             local_graph.partition_2d(full_dict, nodes)
+
+            t_start = MPI.Wtime()
             local_graph.parallel_bfs(0, nodes)
             
             t_slut = MPI.Wtime()
@@ -307,7 +270,7 @@ if __name__ == "__main__":
     # 4. Gem til CSV (Append mode, så du kan køre -n 1, 4, 8, 12 efter hinanden)
     if rank == 0:
         import os
-        csv_filename = "Mikkel_BFS_MPI.csv"
+        csv_filename = "Mikkel_BFS_only_MPI2hop_long.csv"
         file_exists = os.path.isfile(csv_filename)
         
         with open(csv_filename, mode='a', newline='') as file:

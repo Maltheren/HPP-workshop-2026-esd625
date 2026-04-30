@@ -4,7 +4,7 @@ import io
 import csv
 
 
-df = pd.read_csv('Problem1/bfs_master_benchmark_2.csv')
+df = pd.read_csv('Mikkel_BFS_only_MPI2hop_long.csv')
 
 # Initialize the plot
 plt.figure(figsize=(10, 6))
