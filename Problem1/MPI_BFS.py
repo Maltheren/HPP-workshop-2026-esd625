@@ -5,6 +5,8 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import csv
 from tqdm import tqdm
+import cProfile
+
 # RUNS THIS IN THE TERMINAL, DESCRIBING HOW MANY PROCCESSORS TO START:
 # mpiexec –n 10 python MPI_BFS.py
 # mpiexec –n 4 python MPI_BFS\MPI_BFS.py
@@ -242,8 +244,10 @@ def show_result():
     print("="*40)
 
 if __name__ == "__main__":
-    test_sizes = [10, 100, 1000, 10000, 100000]
-    iterations = 32 # To ensure normal distribution
+
+    
+    test_sizes = [100000]
+    iterations = 1 # To ensure normal distribution
     results = []
 
     if rank == 0:
@@ -268,6 +272,9 @@ if __name__ == "__main__":
             # 2. Setup og kørsel
             local_graph = Graph()
             comm.Barrier()
+
+            pr = cProfile.Profile()
+            pr.enable()
             t_start = MPI.Wtime()
             
             local_graph.partition_2d(full_dict, nodes)
@@ -283,6 +290,9 @@ if __name__ == "__main__":
             comm.Reduce(np.array([lokal_tid]), total_tid_sum, op=MPI.SUM, root=0)
             comm.Reduce(np.array([lokal_tid]), max_tid_val, op=MPI.MAX, root=0)
 
+            pr.disable()
+            pr.dump_stats(f'profile_rank_{rank}.prof')
+
             if rank == 0:
                 nodes_mean_accumulator.append(total_tid_sum[0] / size)
                 nodes_max_accumulator.append(max_tid_val[0])
@@ -297,7 +307,7 @@ if __name__ == "__main__":
     # 4. Gem til CSV (Append mode, så du kan køre -n 1, 4, 8, 12 efter hinanden)
     if rank == 0:
         import os
-        csv_filename = "bfs_master_benchmark_2.csv"
+        csv_filename = "Mikkel_BFS_MPI.csv"
         file_exists = os.path.isfile(csv_filename)
         
         with open(csv_filename, mode='a', newline='') as file:
