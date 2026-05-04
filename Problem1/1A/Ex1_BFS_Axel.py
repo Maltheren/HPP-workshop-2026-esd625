@@ -32,44 +32,8 @@ class Graph:
                     bfs_tree.addEdge(u, v)
 
         return bfs_tree, visited
-    
-    def parallel_BFS(self, start):
-        bfs_tree = Graph()
-        visited = set([start])
-        frontier = [start]
-
-        while frontier:
-            tasks = [(node, self.graph[node]) for node in frontier]
-
-            with Pool(cpu_count()) as pool:
-                results = pool.map(expand_neighbors, tasks)
-
-            next_frontier = set()
-
-            for u, neighbors in zip(frontier, results):
-                for v in neighbors:
-                    if v not in visited:
-                        visited.add(v)
-                        next_frontier.add(v)
-                        bfs_tree.addEdge(u, v)
-
-            frontier = list(next_frontier)
-        return bfs_tree, visited
 
 
-def _expand_node(args):
-    node, graph, visited = args
-    local_next = []
-
-    for v in graph[node]:
-        if v not in visited:
-            local_next.append(v)
-
-    return local_next
-
-def expand_neighbors(task):
-    node, neighbors = task
-    return neighbors
 
 
 def visualize_nx_graph(Graph, title, gravity=False):
@@ -111,9 +75,9 @@ def run_test(Graf: Graph):
 
 
 def sequintelTest():
-    Nodes = [10000, 100000]
-    Edges_prNode = [Nodes[0]*5, Nodes[1]*5]
-    runs = 250
+    Nodes = [10, 100, 1000, 10000, 100000, 1000000]
+    Edges_prNode = [Nodes[0]*6, Nodes[1]*6, Nodes[2]*6, Nodes[3]*6, Nodes[4]*6, Nodes[5]*6]
+    runs = 32
 
     
     for (num_nodes, num_edges) in zip(Nodes, Edges_prNode):
@@ -132,20 +96,6 @@ def sequintelTest():
 
 if __name__ == "__main__":
        
-    graf1 = CreateGraph_AXEL(10, 50, 0, False)
-
-    #visualize_nx_graph(graf1, "Rodet graf", False)
-    tree = nx.bfs_tree(graf1, 0)
-    #visualize_nx_graph(tree, "BFS træ", True)
-
-    graph1 = nx_to_mygraph(graf1)
-    print("Starter...")
-    parallel_graf = graph1.parallel_BFS(0)
-    print("FÆRDIG med den første")
-    print(f"Den første har været: {parallel_graf} " )
-    serial_graf = graph1.BFS(0)
-    print("Færdig med 2")
-    print(f"som var: {serial_graf}")
     #plt.show()
-    #sequintelTest()        # Lavet til det sequintielle .
+    sequintelTest()        # Lavet til det sequintielle .
     
