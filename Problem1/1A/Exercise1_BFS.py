@@ -142,8 +142,8 @@ def test_sequential_bfs() -> pd.DataFrame:
 
 if __name__ == "__main__":
     
-    ##result = test_sequential_bfs()
-    ##result.to_csv("results.csv")
+    result = test_sequential_bfs()
+    result.to_csv("results.csv")
     result = pd.read_csv("results.csv")
     result = result[result["time"] < 400]
     #sns.histplot(data=result, x="time", hue="nodes")

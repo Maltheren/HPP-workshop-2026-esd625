@@ -132,11 +132,11 @@ def sequintelTest():
 
 if __name__ == "__main__":
        
-    graf1 = CreateGraph_AXEL(10, 50, 0, False)
+    graf1 = CreateGraph_AXEL(20, 50, 0, False)
 
-    #visualize_nx_graph(graf1, "Rodet graf", False)
+    visualize_nx_graph(graf1, "Rodet graf", False)
     tree = nx.bfs_tree(graf1, 0)
-    #visualize_nx_graph(tree, "BFS træ", True)
+    visualize_nx_graph(tree, "BFS træ", True)
 
     graph1 = nx_to_mygraph(graf1)
     print("Starter...")
@@ -146,6 +146,6 @@ if __name__ == "__main__":
     serial_graf = graph1.BFS(0)
     print("Færdig med 2")
     print(f"som var: {serial_graf}")
-    #plt.show()
+    plt.show()
     #sequintelTest()        # Lavet til det sequintielle .
     
