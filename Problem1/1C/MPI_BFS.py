@@ -174,6 +174,8 @@ def visualize_matrix_partition(full_dict, num_nodes, dims):
         plt.ylabel("Kilde Node (u)")
         plt.grid(True, which='both', linestyle='--', alpha=0.5)
 
+
+# Gammel funktion
 def show_result():
     print("\n" + "="*40)
     print("1. GLOBAL ADJACENCY MATRIX")
@@ -207,7 +209,7 @@ def show_result():
 if __name__ == "__main__":
 
     
-    test_sizes = [10, 100, 1000, 10000, 100000, 1000000]
+    test_sizes = [10, 100, 1000, 10000, 100000]
     iterations = 1 # To ensure normal distribution
     results = []
 
@@ -234,9 +236,6 @@ if __name__ == "__main__":
             local_graph = Graph()
             comm.Barrier()
 
-            pr = cProfile.Profile()
-            pr.enable()
-            
             
             local_graph.partition_2d(full_dict, nodes)
 
@@ -253,8 +252,6 @@ if __name__ == "__main__":
             comm.Reduce(np.array([lokal_tid]), total_tid_sum, op=MPI.SUM, root=0)
             comm.Reduce(np.array([lokal_tid]), max_tid_val, op=MPI.MAX, root=0)
 
-            pr.disable()
-            pr.dump_stats(f'profile_rank_{rank}.prof')
 
             if rank == 0:
                 nodes_mean_accumulator.append(total_tid_sum[0] / size)
@@ -270,7 +267,7 @@ if __name__ == "__main__":
     # 4. Gem til CSV (Append mode, så du kan køre -n 1, 4, 8, 12 efter hinanden)
     if rank == 0:
         import os
-        csv_filename = "Mikkel_BFS_only_MPI2hop_long.csv"
+        csv_filename = "Test_Mikkel.csv"
         file_exists = os.path.isfile(csv_filename)
         
         with open(csv_filename, mode='a', newline='') as file:
