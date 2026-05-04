@@ -122,6 +122,80 @@ class Graph:
             level += 1
             
         return distances
+    
+    def partition_1d(self, full_graph_dict, num_nodes):
+        # Compute this rank's row range
+        chunk = num_nodes // size
+        row_s = rank * chunk
+        row_e = (rank + 1) * chunk if rank < size - 1 else num_nodes
+
+        if rank == 0:
+            for r in range(size):
+                r_s = r * chunk
+                r_e = (r + 1) * chunk if r < size - 1 else num_nodes
+
+                # Only edges where the source node u lives in [r_s, r_e)
+                block = defaultdict(list)
+                for u in range(r_s, r_e):
+                    if u in full_graph_dict:
+                        block[u] = list(full_graph_dict[u])  # ALL neighbors, no column filter
+
+                if r == 0:
+                    self.graph = block
+                else:
+                    comm.send(dict(block), dest=r)
+        else:
+            self.graph = defaultdict(list, comm.recv(source=0))
+
+        return row_s, row_e
+
+
+    def parallel_bfs_1d(self, start_node, num_nodes):
+        """
+        BFS using 1D partitioning. Each rank owns a row stripe of the adjacency matrix.
+        Uses a single global Allreduce instead of row/column sub-communicators.
+        """
+        distances = np.full(num_nodes, -1, dtype=int)
+        if start_node < num_nodes:
+            distances[start_node] = 0
+
+        current_frontier = np.zeros(num_nodes, dtype=bool)
+        current_frontier[start_node] = True
+
+        level = 1
+        while True:
+            # Check globally whether there is anything left to explore
+            local_any = current_frontier.any()
+            global_any = comm.allreduce(local_any, op=MPI.LOR)
+            if not global_any:
+                break
+
+            # 1. Share the full frontier with every rank (replaces row+col Allreduce)
+            global_frontier = np.zeros(num_nodes, dtype=bool)
+            comm.Allreduce(current_frontier, global_frontier, op=MPI.LOR)
+
+            # 2. Each rank checks only its own rows (source nodes it owns)
+            local_discovered = np.zeros(num_nodes, dtype=bool)
+            for u, neighbors in self.graph.items():
+                if global_frontier[u]:          # u is in the frontier
+                    for v in neighbors:
+                        if distances[v] == -1:  # v not yet visited
+                            local_discovered[v] = True
+
+            # 3. Merge discoveries from all ranks — one Allreduce suffices
+            next_frontier_global = np.zeros(num_nodes, dtype=bool)
+            comm.Allreduce(local_discovered, next_frontier_global, op=MPI.LOR)
+
+            # 4. Update distances and build next frontier
+            current_frontier[:] = False
+            for v in range(num_nodes):
+                if next_frontier_global[v] and distances[v] == -1:
+                    distances[v] = level
+                    current_frontier[v] = True
+
+            level += 1
+
+        return distances
 
 
 # --- Hjælpefunktioner ---
@@ -209,7 +283,7 @@ def show_result():
 if __name__ == "__main__":
 
     
-    test_sizes = [10, 100, 1000, 10000, 100000]
+    test_sizes = [10, 100, 1000, 10000, 100000, 1000000, 10000000]
     iterations = 1 # To ensure normal distribution
     results = []
 
@@ -235,22 +309,33 @@ if __name__ == "__main__":
             # 2. Setup og kørsel
             local_graph = Graph()
             comm.Barrier()
-
-            
             local_graph.partition_2d(full_dict, nodes)
-
+            
             t_start = MPI.Wtime()
             local_graph.parallel_bfs(0, nodes)
-            
             t_slut = MPI.Wtime()
             lokal_tid = t_slut - t_start
-
             # 3. Opsamling (Husk Reduce skal kaldes af alle)
             total_tid_sum = np.zeros(1, dtype=float)
             max_tid_val = np.zeros(1, dtype=float)
-            
             comm.Reduce(np.array([lokal_tid]), total_tid_sum, op=MPI.SUM, root=0)
             comm.Reduce(np.array([lokal_tid]), max_tid_val, op=MPI.MAX, root=0)
+
+
+            local_graph_1d = Graph()
+            comm.Barrier()
+            local_graph_1d.partition_1d(full_dict, nodes)
+
+            t_start_1d = MPI.Wtime()
+            local_graph_1d.parallel_bfs_1d(0, nodes)
+            t_slut_1d = MPI.Wtime()
+            lokal_tid_1d = t_slut_1d - t_start_1d
+
+            total_tid_sum_1d = np.zeros(1, dtype=float)
+            max_tid_val_1d  = np.zeros(1, dtype=float)
+            comm.Reduce(np.array([lokal_tid_1d]), total_tid_sum_1d, op=MPI.SUM, root=0)
+            comm.Reduce(np.array([lokal_tid_1d]), max_tid_val_1d,  op=MPI.MAX, root=0)
+
 
 
             if rank == 0:
@@ -267,7 +352,7 @@ if __name__ == "__main__":
     # 4. Gem til CSV (Append mode, så du kan køre -n 1, 4, 8, 12 efter hinanden)
     if rank == 0:
         import os
-        csv_filename = "Test_Mikkel.csv"
+        csv_filename = "Long_boi.csv"
         file_exists = os.path.isfile(csv_filename)
         
         with open(csv_filename, mode='a', newline='') as file:
