@@ -1,5 +1,7 @@
-import multiprocessing
+from multiprocessing import Pool
 from collections import defaultdict, deque
+
+
 import random as rand
 import numpy as np
 import tqdm as tqdm
@@ -9,6 +11,17 @@ import time
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+
+
+def process_node_worker(u, graph_data, visited_shared): 
+    local_next = []
+    # Note: Shared state logic needs to be handled carefully in parallel
+    for v in graph_data.get(u, []):
+        if v not in visited_shared:
+            visited_shared.add(v)
+            local_next.append(v)
+            bfs_tree.addEdge(u, v)    
+    return local_next
 
 class Graph:
     def __init__(self):
@@ -36,28 +49,28 @@ class Graph:
         return bfs_tree
     
 
-    async def BFS_Threading(self, start, threads):
+    def BFS_Threading(self, start, threads):
         bfs_tree = Graph()
         visited = set()
         visited.add(start)
         current_level = [start]
         
-        def process_node(u): 
-            local_next = []
-            for v in self.graph[u]:
-                if v not in visited:
-                    visited.add(v)
-                    bfs_tree.addEdge(u, v)
-                    local_next.append(v)
-            return local_next
+        """def process_node(u): 
+        local_next = []
+        for v in self.graph[u]:
+            if v not in visited:
+                visited.add(v)
+                bfs_tree.addEdge(u, v)
+                local_next.append(v)
+        return local_next """
             
 
-        with ThreadPoolExecutor(max_workers=threads) as executor:
+        with Pool(5) as pool:
             while current_level:
                 next_level = []
                 chunks = int(len(current_level)/threads)
-                loop = asyncio.get_running_loop()
-                results = await loop.run_in_executor(executor, process_node, current_level)  
+                args = [(u, self.graph, visited) for u in current_level]
+                results = pool.starmap(process_node_worker, args)
                 for sublist in results:
                     for v in sublist:
                         next_level.append(v)
@@ -196,13 +209,13 @@ if __name__ == "__main__":
     Res1 = Grafen.BFS(0)
     #print(Res1.graph)
     Res2 = Grafen.BFS_Threading(0,10)
-    #print(Res2.graph) 
+    #print(Res2.graph)  
 
-    """ visualizeGraph(Grafen, "Original Graf", False)
+    visualizeGraph(Grafen, "Original Graf", False)
     plt.show()
     visualizeGraph(Res1, "BFS Sequential", True)
     plt.show()
     visualizeGraph(Res2, "BFS Parallel", True)
     plt.show() 
-    """
+   
     print(f"Are they the same? {Res1 == Res2}")
