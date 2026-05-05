@@ -1,10 +1,16 @@
 # Current state for the HPP workshop
 
 ## Exercise 1
+### subproblem A
+Nothing is really that interesting about this one instance, see problem 1C
+### subproblem B
 
+
+### subproblem C
+<img src="Problem1/1C/Results.png" alt="Result" width="800">
 
 ## Exercise 2
-
+<img src="Problem2/Results.png" alt="Result" width="800">
 
 
 
