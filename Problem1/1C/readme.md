@@ -18,9 +18,11 @@ There's also a couple helping functions:
 
 ## Running the code
 A list "test_sizes" is the amount of different runs it does, with varying tree sizes.
-a iteration variable is the amount of total runs it does. We used it to do 32 runs and then plottet that data since it is over 30 it would be "normal distributed".
+
+A iteration variable is the amount of total runs it does. We used it to do 32 runs and then plottet that data since it is over 30 it would be "normal distributed".
 
 Before starting the code, a csv_filename is required to be able to use the MPI_plotter.py.
+
 Also a run.bat file is made which runs this program automatically with the different processors the pc have, starting from 2 and jumping an increment (which is in the run.bat file) (2,2,16) (start processor, increment, Max processor)
 
 The timing is only made for doing the parallel BFS and not including the partitioning scheme.
