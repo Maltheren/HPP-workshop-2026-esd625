@@ -306,7 +306,7 @@ if __name__ == "__main__":
             else:
                 full_dict = None
 
-            # 2. Setup og kørsel
+            # 2. Setup og kørsel 2D
             local_graph = Graph()
             comm.Barrier()
             local_graph.partition_2d(full_dict, nodes)
@@ -321,7 +321,7 @@ if __name__ == "__main__":
             comm.Reduce(np.array([lokal_tid]), total_tid_sum, op=MPI.SUM, root=0)
             comm.Reduce(np.array([lokal_tid]), max_tid_val, op=MPI.MAX, root=0)
 
-
+            """ 1D
             local_graph_1d = Graph()
             comm.Barrier()
             local_graph_1d.partition_1d(full_dict, nodes)
@@ -335,7 +335,7 @@ if __name__ == "__main__":
             max_tid_val_1d  = np.zeros(1, dtype=float)
             comm.Reduce(np.array([lokal_tid_1d]), total_tid_sum_1d, op=MPI.SUM, root=0)
             comm.Reduce(np.array([lokal_tid_1d]), max_tid_val_1d,  op=MPI.MAX, root=0)
-
+            """
 
 
             if rank == 0:
