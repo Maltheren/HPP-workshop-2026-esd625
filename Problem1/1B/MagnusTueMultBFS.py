@@ -1,15 +1,11 @@
 from collections import defaultdict, deque
-import random as rand
 import numpy as np
 import tqdm as tqdm
 import networkx as nx
 import matplotlib.pyplot as plt
 import time
-import pandas as pd
-import seaborn as sns
-from multiprocessing import Pool, Value, cpu_count, Process, Manager, Array
+from multiprocessing import Process, Manager
 import math
-import os
 
 
 
@@ -40,28 +36,18 @@ def BFS(graph: Graph, start: int):
     return bfs_tree
 
 def process_block(block, visited, graph_global, bfs_tree_global, next_level): #Jeg tjekker en blok noder og finder deres næste lag
-    #Tag Mutex
-    #Tjek om der er nogen af mine vertices der har været tjekket
-    #Sæt alle mine vertices til "tjekket"
-    #Lokal liste over de nodes der skal tjekkes findes nu
-    #Giv Mutex
-
-    #Kør Process Node
-    print(f"My block: {block}, process id: {os.getpid()}")
     local_next = set()
 
     for node in block:
         temp_vector = [node]
         for v in graph_global[node]:
             if v not in visited:
-                visited.add(node)
+                visited.add(v)
                 local_next.add(v)
                 temp_vector.append(v)
                 #print(f"Adding edge from {node} to {v}")
-        print(temp_vector)
         bfs_tree_global[node] = temp_vector
     
-    #print(bfs_tree_global)
     #Returner de fundne vertices i næste level
     for item in local_next:
         next_level.add(item)
@@ -71,15 +57,14 @@ def process_block(block, visited, graph_global, bfs_tree_global, next_level): #J
 
 
 def BFS_threaded(start: int, threads: int, graph: Graph):
-
+    
     with Manager() as manager: # Starter en manager for at håndtere delte data strukturer
         globalGraph = manager.list()
         globalGraph = graph.graph
-        #print(graph.graph)
         visited = manager.set()
         bfs_tree = manager.list([None]*num_nodes)
-        #print(globalGraph)
 
+        
         # Vi starter data structs op
         visited.add(start)
         current_level = []
@@ -93,58 +78,38 @@ def BFS_threaded(start: int, threads: int, graph: Graph):
                 temp_vector.append(v)
         
         bfs_tree[0] = temp_vector
-        # print(f"Here is the BFS tree: {bfs_tree}")
-        # np.int64(0): [25, 40, 46]
-        # [0, 25, 40, 46]
+
         current_level = list(first_level)
 
-        #print(f"First Level is: {current_level}")
+
         blocks = []
         
         if len(current_level) < threads:
             num_of_processes = len(current_level)
         else: num_of_processes = threads
         
-        while current_level: #splitter current level op i blocks til processerne
-            next_level = manager.set()
+        while current_level: 
+            next_level = manager.set() #Empties the next level
             blocks = []
-            block_length = int(math.ceil(len(current_level)/num_of_processes))
-            #print(f"block_length {block_length}")
+            block_length = int(math.ceil(len(current_level)/num_of_processes)) #Partitions the level into blocks
             for i in range(0, num_of_processes):
                 blocks.append(current_level[i*block_length:(i+1)*block_length])
-            #print(blocks)
         
-        #Vi har nu blokke, de skal deles ud.
-        
+            #We use processes because pooling didn't work with the data types we like.
             processes = [Process(target=process_block, args=(blocks[i],visited, globalGraph, bfs_tree, next_level, )) for i in range(num_of_processes)]
             for p in processes:
                 p.start()
+            for p in processes:
                 p.join()
-            print(f"next level is {next_level}")
             current_level = list(next_level)
         
-        print(f"Final BFS tree: {bfs_tree}")
-    """ for v in graph.graph[start]:
-            if v not in visited:
-                visited.add(v)
-                next_level.append(v)
-                #bfs_tree.addEdge(start, v) """
-
-
+        bfs_graph = Graph()
+        for node in list(bfs_tree):
+            if node is not None:
+                for i in range(len(node[1:])):
+                    bfs_graph.addEdge(node[0], node[i+1])
+        return bfs_graph
     
-
-
-
-    #Find ud af hvilke nodes vi skal kigge på i level 1
-    #Split de nodes i blokke
-    #Behandl en blok per processor i parallel
-    #............
-    #Vi samler skidtet
-    #Næste level opdateres
-
-
-    return bfs_tree
-
 
 def visualizeGraph(graph_obj, title: str, gravity=False):
     G = nx.DiGraph()
@@ -167,6 +132,7 @@ def visualizeGraph(graph_obj, title: str, gravity=False):
     plt.title(title)
     plt.show(block=False)
 
+
 def CreateGraph(num_nodes: int, max_edges_pr_node: int):
     graph = Graph()
     Node_candidates = np.arange(num_nodes)
@@ -179,99 +145,48 @@ def CreateGraph(num_nodes: int, max_edges_pr_node: int):
     return graph
 
 
-def CreateGraph_DAG(num_nodes: int, max_edges_pr_node: int):
-    graph = Graph()
-    Node_candidates = np.arange(num_nodes)
-    outgoing_arrows = np.array([False]*len(Node_candidates) )
-    for node in Node_candidates:
-        for i in range(np.random.randint(1, max_edges_pr_node)):
-            dest_node = node
-            tries = 0
-            ok = True
-            while (dest_node == node or outgoing_arrows[dest_node]):
-                dest_node = np.random.randint(0, len(Node_candidates)-1)
-                if(tries > max_edges_pr_node*2):
-                    ok = False
-                    break
-                tries += 1
-            if(ok):
-                graph.addEdge(node, dest_node)
-                outgoing_arrows[node] = True
-    return graph
 
-
-def run_test(graph: Graph, processors: int):
+def run_test_unthreaded(graph: Graph):
     t_0 = time.perf_counter_ns()
-    BFS_TREE = BFS_threaded(0, processors, graph)
+    BFS_TREE = BFS(graph, 0)
     t_1 = time.perf_counter_ns()
     #visualizeGraph(BFS_TREE,"Jeg er et træ", True)
+    #plt.show()
 
     return t_1 - t_0
 
 
+def run_test_threaded(graph: Graph, processors: int):
+    t_0 = time.perf_counter_ns()
+    BFS_TREE = BFS_threaded(0, processors, graph)
+    t_1 = time.perf_counter_ns()
+    #visualizeGraph(BFS_TREE,"Jeg er et træ", True)
+    #plt.show()
 
-def _single_run(args):
-    num_nodes, num_edges = args
-    Graf = CreateGraph(num_nodes, num_edges)
-    return run_test(Graf) / 1000  # mikrosekunder
-
-
-def test_sequential_bfs() -> pd.DataFrame:
-    Nodes = np.array([100, 200, 300, 400, 500, 600, 700, 800, 900, 1000])
-    Edges_prNode = np.floor(Nodes / 3)
-    runs = 100
-
-    time_vector = []
-    edges_vector = []
-    nodes_vector = []
-
-    with Pool(cpu_count()) as pool:
-        for num_nodes, num_edges in zip(Nodes, Edges_prNode):
-            print(f"testing: nodes={num_nodes}, edges={num_edges}")
-
-            # Lav input til pool
-            tasks = [(num_nodes, num_edges)] * runs
-
-            # tqdm wrapper omkring imap
-            results = list(tqdm.tqdm(pool.imap(_single_run, tasks), total=runs))
-
-            t_perf = np.array(results)
-
-            # Logging
-            edges_vector.extend([num_edges] * runs)
-            nodes_vector.extend([num_nodes] * runs)
-            time_vector.extend(t_perf)
-
-            print(f"mean={t_perf.mean():0.1f} us, std={t_perf.std():0.1f} us")
-
-    return pd.DataFrame({
-        "time": time_vector,
-        "nodes": nodes_vector,
-        "edges": edges_vector,
-    })
-
-
-
+    return t_1 - t_0
 
 
 if __name__ == "__main__":
-    num_nodes = 20
+    #_____________________________________________________________________________________________
+    #=========================[VARY CODE FOR TEST PURPOSES HERE:]=================================
+    #_____________________________________________________________________________________________
+    num_nodes = 4000
+    num_edges = 4
+    processors = 10  
 
+    #_____________________________________________________________________________________________
+    #=============================================================================================
+    #_____________________________________________________________________________________________
+   
+    
+    Graf = CreateGraph(num_nodes, num_edges)            #Creates the shared graf for testing
+    print("Graf is done")
+    
+    time1 = run_test_unthreaded(Graf) / 1e9             #Run the standard BFS Algo
+    print(f"time single: {time1}")
 
-    num_edges = 10
-    Graf = CreateGraph(num_nodes, num_edges)    
-    print(BFS(Graf, 0).graph)
-    processors = 2  
-    time = run_test(Graf, processors) / 1000
+    time2 = run_test_threaded(Graf, processors) / 1e9   #Run the level synchronized shared memory parallel BFS
+    print(f"time threaded: {time2}")
 
-    ##result.to_csv("results.csv")
-    """ result = pd.read_csv("results.csv")
-    result = result[result["time"] < 400]
-    #sns.histplot(data=result, x="time", hue="nodes")
-    sns.lineplot(data=result, x="nodes", y="time", errorbar=("sd", 2))
-    sns.scatterplot(data=result, x="nodes", y="time", size=1)
-    plt.grid(True)
-    plt.xlabel("Number of nodes")
-    plt.ylabel("BFS time, us")
-    plt.ylim(0, 200)
-    plt.show() """
+    print(f"Speedup: {time1 / time2:.8f}x")             #Find speedup for parrallel BFS compared to normal BFS
+                                                            #(More like slowdown)
