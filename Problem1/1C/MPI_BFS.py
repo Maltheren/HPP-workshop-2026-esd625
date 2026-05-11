@@ -28,6 +28,7 @@ class Graph:
     def addEdge(self, u, v):
         self.graph[u].append(v)
 
+
     def setup_2d_topology(self, num_nodes): 
         # Beregn 2D dimensioner (8 processer 4x2 gitter)
         dims = MPI.Compute_dims(size, 2)
@@ -199,6 +200,21 @@ class Graph:
 
 
 # --- Hjælpefunktioner ---
+
+def sequential_bfs(full_graph_dict, start_node, num_nodes):
+    distances = np.full(num_nodes, -1, dtype=int)
+    distances[start_node] = 0
+    queue = deque([start_node])
+    
+    while queue:
+        u = queue.popleft()
+        # Get neighbors safely from the dictionary
+        for v in full_graph_dict.get(u, []):
+            if distances[v] == -1:
+                distances[v] = distances[u] + 1
+                queue.append(v)
+    return distances
+
 def nx_to_dict(nx_graph):
     d = defaultdict(list)
     for u, v in nx_graph.edges():
@@ -283,10 +299,9 @@ def show_result():
 if __name__ == "__main__":
 
     
-    test_sizes = [10, 100, 1000, 10000, 100000, 1000000, 10000000]
-    iterations = 1 # To ensure normal distribution
+    test_sizes = [10, 100, 1000, 10000, 100000, 500000]
+    iterations = 3 
     results = []
-
     if rank == 0:
         print(f"Starter benchmark med {size} processer...")
 
@@ -296,47 +311,42 @@ if __name__ == "__main__":
         
         nodes_mean_accumulator = []
         nodes_max_accumulator = []
+        nodes_seq_accumulator = []
 
         for i in range(iterations):
-            # 1. NY graf for HVER iteration med unikt seed
             if rank == 0:
-                # Vi bruger 'i' som seed, så vi får 100 forskellige grafer
-                nx_graf = CreateGraph_nx_graph(nodes, nodes*6, i, True)
+                # Byg grafen
+                edges = nodes*50
+                nx_graf = CreateGraph_nx_graph(nodes, edges, i, True) # Start med *10 fremfor *60 for at teste RAM
                 full_dict = nx_to_dict(nx_graf)
+                del nx_graf # FRigør lige noget RAM
+                
+                print("Starter sekventiel BFS...")
+                t_start_seq = MPI.Wtime()
+                sequential_bfs(full_dict, 0, nodes)
+                t_seq = MPI.Wtime() - t_start_seq
+                nodes_seq_accumulator.append(t_seq)
+                print(f"Seriel tid: {t_seq:.4f}s")
             else:
                 full_dict = None
+                t_seq = 0
 
-            # 2. Setup og kørsel 2D
+            # Parallel del
             local_graph = Graph()
             comm.Barrier()
             local_graph.partition_2d(full_dict, nodes)
-            
+            #del full_dict
+            comm.Barrier()
             t_start = MPI.Wtime()
             local_graph.parallel_bfs(0, nodes)
             t_slut = MPI.Wtime()
             lokal_tid = t_slut - t_start
-            # 3. Opsamling (Husk Reduce skal kaldes af alle)
-            total_tid_sum = np.zeros(1, dtype=float)
+
+            # Opsamling
             max_tid_val = np.zeros(1, dtype=float)
+            total_tid_sum = np.zeros(1, dtype=float)
             comm.Reduce(np.array([lokal_tid]), total_tid_sum, op=MPI.SUM, root=0)
             comm.Reduce(np.array([lokal_tid]), max_tid_val, op=MPI.MAX, root=0)
-
-            """ 1D
-            local_graph_1d = Graph()
-            comm.Barrier()
-            local_graph_1d.partition_1d(full_dict, nodes)
-
-            t_start_1d = MPI.Wtime()
-            local_graph_1d.parallel_bfs_1d(0, nodes)
-            t_slut_1d = MPI.Wtime()
-            lokal_tid_1d = t_slut_1d - t_start_1d
-
-            total_tid_sum_1d = np.zeros(1, dtype=float)
-            max_tid_val_1d  = np.zeros(1, dtype=float)
-            comm.Reduce(np.array([lokal_tid_1d]), total_tid_sum_1d, op=MPI.SUM, root=0)
-            comm.Reduce(np.array([lokal_tid_1d]), max_tid_val_1d,  op=MPI.MAX, root=0)
-            """
-
 
             if rank == 0:
                 nodes_mean_accumulator.append(total_tid_sum[0] / size)
@@ -345,21 +355,30 @@ if __name__ == "__main__":
 
         if rank == 0:
             pbar.close()
-            final_mean = sum(nodes_mean_accumulator) / iterations
-            final_max = sum(nodes_max_accumulator) / iterations
-            results.append([nodes, final_mean, final_max])
+            final_seq = sum(nodes_seq_accumulator) / iterations # Gennemsnit seriel
+            final_max = sum(nodes_max_accumulator) / iterations # Gennemsnit parallel
+            final_mean = sum(nodes_mean_accumulator) / iterations            
+            # RETTET SPEEDUP BEREGNING
+            speedup = t_seq / final_max if final_max > 0 else 0
+            print(f"\nResultat for {nodes} noder:")
+            print(f"Sekventiel: {t_seq:.6f}s")
+            print(f"Parallel ({size}p): {final_max:.6f}s")
+            print(f"Speedup: {speedup:.4f}x")
+            
+            results.append([nodes, edges, final_seq, final_mean, final_max, speedup])
 
     # 4. Gem til CSV (Append mode, så du kan køre -n 1, 4, 8, 12 efter hinanden)
     if rank == 0:
+        print(f"\nSize: {nodes} | Seq: {t_seq:.6f}s | Par: {final_max:.6f}s | Speedup: {speedup:.4f}x")
         import os
-        csv_filename = "Long_boi.csv"
+        csv_filename = "MPI_WITH_SPEEDUP.csv"
         file_exists = os.path.isfile(csv_filename)
         
         with open(csv_filename, mode='a', newline='') as file:
             writer = csv.writer(file)
             # Skriv kun header hvis filen er ny
             if not file_exists:
-                writer.writerow(['procs', 'num_nodes', 'avg_mean_time', 'avg_max_time'])
+                writer.writerow(['procs', 'num_nodes', 'num_edges', 'avg_seq_time', 'avg_mean_time', 'avg_max_time', 'avg_speedup'])
             
             for row in results:
                 writer.writerow([size] + row)
